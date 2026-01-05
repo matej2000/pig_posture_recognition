@@ -33,6 +33,8 @@ class PigDataset(Dataset):
 
 def build_train_transforms(cfg, weights):
     aug = []
+    if "augmentation" not in cfg.config.keys():
+        return weights.transforms()
 
     if "random_resized_crop" in cfg["augmentation"].keys():
         aug.append(
