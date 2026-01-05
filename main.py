@@ -12,11 +12,13 @@ import torch.optim as optim
 from torchvision.models import efficientnet_v2_m, EfficientNet_V2_M_Weights, convnext_small, ConvNeXt_Small_Weights
 
 from src.dataset import PigDataset, build_train_transforms
-from src.train import train, test
+from src.train import train, test, inference, evaluate_results_test
 import os
 import mlflow
 from torch.utils.data import WeightedRandomSampler
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 
 def loss_CE(pred, gt, device="cuda"):
     loss = nn.CrossEntropyLoss()
@@ -31,37 +33,30 @@ def main(args, ) -> None:
     mlflow.pytorch.autolog()
 
     if args.config is not None:
+
+        model = convnext_small(ConvNeXt_Small_Weights.DEFAULT)
+        model.classifier[2] = nn.Linear(model.classifier[2].in_features, yaml_parser["num_classes"])
+        main_transform = ConvNeXt_Small_Weights.DEFAULT.transforms()
+        device = torch.device("cuda")
+        model.to(device)
+        
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print("Number of trainable parameters: ", trainable)
+        
+        resume_itr = 0
+        if yaml_parser["resume"] is not None and yaml_parser["resume"] != "None":
+            resume_itr = yaml_parser["resume_itr"]
+            print("Resuming from checkpoint: ", yaml_parser["resume"])
+            model.load_state_dict(torch.load(yaml_parser["resume"]), strict=True)
+            
+
         with mlflow.start_run(run_name=yaml_parser["run_name"]):
             mlflow.log_params(yaml_parser.get_flat_config())
             mlflow.log_artifact(args.config)
 
-            model = convnext_small(ConvNeXt_Small_Weights.DEFAULT)
-            model.classifier[2] = nn.Linear(model.classifier[2].in_features, yaml_parser["num_classes"])
-            main_transform = ConvNeXt_Small_Weights.DEFAULT.transforms()
-            device = torch.device("cuda")
-            model.to(device)
-            
-            trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            print("Number of trainable parameters: ", trainable)
-            
-            resume_itr = 0
-            if yaml_parser["resume"] is not None and yaml_parser["resume"] != "None":
-                print("Resuming from checkpoint: ", yaml_parser["resume"])
-                model.load_state_dict(torch.load(yaml_parser["resume"]), strict=True)
-                resume_itr = int(yaml_parser["resume"].split(".")[0].split("_")[-1]) + 1
-                print(resume_itr)
-
             if yaml_parser["task"] == "train":
                 #Define dataloader
                 if not yaml_parser["shuffle"]:
-                    # class_weights = torch.tensor([
-                    #     0.000676,
-                    #     0.000605,
-                    #     0.000212,
-                    #     0.003049,
-                    #     0.000325
-                    # ])
-                    # Calculate weights
                     dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, ConvNeXt_Small_Weights.DEFAULT))
                     targets = dataset.targets
                     class_sample_count = np.unique(targets, return_counts=True)[1]
@@ -106,6 +101,9 @@ def main(args, ) -> None:
                 train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, device, yaml_parser["epoch"], output_dir, scheduler=scheduler, resume_itr=resume_itr)
 
             elif yaml_parser["task"] == "test":
+                if yaml_parser["resume"] == None:
+                    raise ValueError("No weights provided")
+                
                 dataset = PigDataset(yaml_parser["test_ann"], yaml_parser["test_dir"], transform=main_transform)
                 test_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=False)
                 
@@ -113,10 +111,45 @@ def main(args, ) -> None:
                 device = torch.device("cuda")
 
                 predictions, gt, loss = test(test_loader, model, loss_fn, device)
-            
+                results = evaluate_results_test(predictions, gt)
+
+                plt.figure(figsize=(6, 6))
+                plt.imshow(results["cm"])
+                plt.title("Confusion Matrix")
+                plt.xlabel("Predicted")
+                plt.ylabel("True")
+                plt.colorbar()
+                mlflow.log_figure(plt.gcf(), "confusion_matrix_val.png")
+                plt.close()
+
+                # Log final test results (distinct from validation)
+                mlflow.log_metric("final_test_loss", loss)
+                mlflow.log_metric("final_test_ac", results["ca"])
+                mlflow.log_metric("final_test_f1", results["f1"])
+
 
             elif yaml_parser["task"] == "inference":
-                raise NotImplementedError
+                if yaml_parser["resume"] == None:
+                    raise ValueError("No weights provided")
+                    
+                dataset = PigDataset(yaml_parser["test_ann"], yaml_parser["test_dir"], transform=main_transform, is_inference=True)
+                test_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=False)
+
+                device = torch.device("cuda")
+
+                predictions, row_ids = inference(test_loader, model, device)
+
+                results = pd.DataFrame([])
+                new_rows = []
+                for row in row_ids:
+                    new_rows += row
+                results["row_id"] = new_rows
+                results["class_id"] = torch.cat(predictions).cpu().numpy()
+
+                results.to_csv(os.path.join(yaml_parser["output_dir"], "predictions.csv"), index=False)
+                print("Predictions saved in " + os.path.join(yaml_parser["output_dir"], "predictions.csv"))
+                
+
             else:
                 raise ValueError("Unknown task")
     else:
