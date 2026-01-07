@@ -1,5 +1,5 @@
 experiment_name: Pig_Posture_Prediction
-run_name: run05
+run_name: run12
 
 train_ann: data/split/train.csv
 train_dir: data/train_images/
@@ -15,9 +15,9 @@ output_dir: "output/"
 model_name: convnext_small
 
 num_classes: 5
-epoch: 10
+epoch: 25
 num_workers: 4
-batch_size: 4
+batch_size: 8
 shuffle: False
 drop_last: False
 pin_memory: False
@@ -43,7 +43,8 @@ task: train
 scheduler:
   type: CosineAnnealingLR
   params:
-    T_max: 20
+    T_max: 25
+    eta_min: 0.000001
 
 # lr orig is 0.0001, *0.1 after 16 epoch
 # optimizer:
@@ -56,15 +57,26 @@ optimizer:
   type: AdamW
   params:
     #lr: 1e-5
-    lr: 0.00001
-    #weight_decay: 0.05
-    weight_decay: 0.0001
+    #lr: 0.00001
+    lr: 0.0002
+    #weight_decay: 0.0001
+    weight_decay: 0.05
     betas: [0.9, 0.999]
 
 
-# augmentation:
-#   color_jitter:
-#     brightness: 0.2
-#     contrast: 0.2
-#     saturation: 0.2
-#     hue: 0.1
+augmentation:
+  # resize:
+  #   size: [224, 224]
+  horizontal_flip:
+    p: 0.5
+  random_resized_crop:
+    size: [224, 224]
+    scale: [0.7, 1.0]
+  random_perspective:
+    distortion_scale: 0.2
+    p: 0.4
+  color_jitter:
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.1

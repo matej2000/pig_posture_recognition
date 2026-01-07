@@ -4,8 +4,8 @@ run_name: run04
 train_ann: data/split/train.csv
 train_dir: data/train_images/
 
-test_ann: data/split/test.csv
-test_dir: data/train_images/
+test_ann: data/test.csv
+test_dir: data/test_images/
 
 val_ann: data/split/val.csv
 val_dir: data/train_images/
@@ -22,10 +22,10 @@ shuffle: False
 drop_last: False
 pin_memory: False
 
-resume: output/run04/best_epoch.pth
+resume: output/run12/best_epoch.pth
 resume_optimizer: None
 resume_itr: 0
-task: test
+task: inference
 
 
 # scheduler:

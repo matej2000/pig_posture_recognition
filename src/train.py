@@ -23,7 +23,7 @@ def evaluate_results_test(predictions, gt):
     cm = confusion_matrix(gt2, predictions2)
     return {"f1": f1, "ca": ca, "cm": cm}
 
-def train_one_epoch(dataloader, model, loss_fn, optimizer, device, postprocessor):
+def train_one_epoch(dataloader, model, loss_fn, optimizer, scaler, device, postprocessor):
     size = len(dataloader.dataset)
     
     batch = 0
@@ -36,17 +36,14 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device, postprocessor
             pred = postprocessor(pred)
         loss = loss_fn(pred, y)
 
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        # loss.backward()
+        # optimizer.step()
+        # optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
-        # batch += 1
-
-        # if batch % 100 == 0:
-        #     loss, current = loss.item(), (batch + 1) * len(x)
-        #     print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-
-def train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, device, epochs=1, output_dir="./output/", scheduler=None, resume_itr=0, postprocessor=None):
+def train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, scaler, device, epochs=1, output_dir="./output/", scheduler=None, resume_itr=0, postprocessor=None):
     mlflow.log_param("epochs", epochs)
     mlflow.log_param("optimizer_type", type(optimizer).__name__)
     mlflow.log_param("learning_rate_init", optimizer.param_groups[0]["lr"])
@@ -64,7 +61,7 @@ def train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, devi
 
     for t in range(resume_itr, epochs):
         print(f"Epoch {t+1}\n-------------------------------")
-        train_one_epoch(train_loader, model, loss_fn, optimizer, device, postprocessor=postprocessor)
+        train_one_epoch(train_loader, model, loss_fn, optimizer, scaler, device, postprocessor=postprocessor)
         predictions, gt, loss = test(val_loader, model, loss_fn, device, postprocessor=postprocessor)
 
         results = evaluate_results(predictions, gt)
@@ -84,6 +81,7 @@ def train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, devi
         torch.save(model.state_dict(), os.path.join(output_dir, f"last_epoch.pth"))
         torch.save(optimizer.state_dict(), os.path.join(output_dir, f"last_optimizer.pth"))
 
+        scheduler.step()
 
         losses.append(loss)
         f1s.append(results["f1"])
@@ -134,6 +132,12 @@ def test(dataloader, model, loss_fn, device, postprocessor=None):
             test_loss += loss_fn(pred, y.to(device)).item()
 
             _, pred = torch.max(pred, 1)
+            # pred = torch.softmax(model(x), 1)
+            # pred2 = torch.softmax(model(torch.flip(x, dims=[3])), 1)
+            # pred = (pred + pred2) / 2.0
+            # _, pred = torch.max(pred, 1)
+
+
             
             predictions.append(pred)
             gts.append(y)

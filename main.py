@@ -11,7 +11,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 import torch.optim as optim
 from torchvision.models import efficientnet_v2_m, EfficientNet_V2_M_Weights, convnext_small, ConvNeXt_Small_Weights
 
-from src.dataset import PigDataset, build_train_transforms
+from src.dataset import PigDataset, build_train_transforms, visualize_dataloader
 from src.train import train, test, inference, evaluate_results_test
 import os
 import mlflow
@@ -75,7 +75,8 @@ def main(args, ) -> None:
                 test_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=False)
                 
                 device = torch.device("cuda")
-                loss_fn = nn.CrossEntropyLoss()
+                loss_fn = nn.CrossEntropyLoss(label_smoothing=0.05)
+                scaler = torch.cuda.amp.GradScaler()
                 
                 # Load optimizer
                 if not yaml_parser["optimizer"]:
@@ -98,7 +99,7 @@ def main(args, ) -> None:
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
 
-                train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, device, yaml_parser["epoch"], output_dir, scheduler=scheduler, resume_itr=resume_itr)
+                train(model, train_loader, val_loader, test_loader, loss_fn, optimizer, scaler, device, yaml_parser["epoch"], output_dir, scheduler=scheduler, resume_itr=resume_itr)
 
             elif yaml_parser["task"] == "test":
                 if yaml_parser["resume"] == None:
@@ -149,7 +150,10 @@ def main(args, ) -> None:
                 results.to_csv(os.path.join(yaml_parser["output_dir"], "predictions.csv"), index=False)
                 print("Predictions saved in " + os.path.join(yaml_parser["output_dir"], "predictions.csv"))
                 
-
+            elif yaml_parser["task"] == "visualization":
+                dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser))
+                train_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=yaml_parser["drop_last"])
+                visualize_dataloader(train_loader, 10)
             else:
                 raise ValueError("Unknown task")
     else:
@@ -164,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument('--task', '-t', type=str, default="train")
     args = parser.parse_args()
 
+    #args = Namespace(config="configs/inference.yaml")
     args = Namespace(config="configs/test.yaml")
 
     main(args)
