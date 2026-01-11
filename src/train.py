@@ -5,6 +5,7 @@ import os
 import mlflow
 import numpy as np
 import matplotlib.pyplot as plt
+from torch.cuda.amp import autocast
 
 
 def evaluate_results(predictions, gt):
@@ -31,10 +32,13 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, scaler, device, postp
         x = x.to(device)
         y = y.to(device)
         
-        pred = model(x)
+        optimizer.zero_grad(set_to_none=True)
+        with autocast():
+            pred = model(x)
+            loss = loss_fn(pred, y)
+        
         if postprocessor is not None:
             pred = postprocessor(pred)
-        loss = loss_fn(pred, y)
 
         # loss.backward()
         # optimizer.step()
@@ -127,9 +131,10 @@ def test(dataloader, model, loss_fn, device, postprocessor=None):
     with torch.no_grad():
         for x, y in tqdm(dataloader):
             x = x.to(device)
-            pred = model(x)
 
-            test_loss += loss_fn(pred, y.to(device)).item()
+            with autocast():
+                pred = model(x)
+                test_loss += loss_fn(pred, y.to(device)).item()
 
             _, pred = torch.max(pred, 1)
             # pred = torch.softmax(model(x), 1)
