@@ -19,6 +19,7 @@ from torch.utils.data import WeightedRandomSampler
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from src.models import get_model_and_transforms
 
 def loss_CE(pred, gt, device="cuda"):
     loss = nn.CrossEntropyLoss()
@@ -34,10 +35,15 @@ def main(args, ) -> None:
 
     if args.config is not None:
 
-        model = convnext_small(ConvNeXt_Small_Weights.DEFAULT)
-        model.classifier[2] = nn.Linear(model.classifier[2].in_features, yaml_parser["num_classes"])
-        main_transform = ConvNeXt_Small_Weights.DEFAULT.transforms()
+        model_name = yaml_parser["model"]["type"]
+        model, main_transform, weights_enum = get_model_and_transforms(
+            model_name, 
+            yaml_parser["num_classes"]
+        )
+        
+        #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = torch.device("cuda")
+        print(device)
         model.to(device)
         
         trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -124,6 +130,7 @@ def main(args, ) -> None:
                 plt.close()
 
                 # Log final test results (distinct from validation)
+                print(results)
                 mlflow.log_metric("final_test_loss", loss)
                 mlflow.log_metric("final_test_ac", results["ca"])
                 mlflow.log_metric("final_test_f1", results["f1"])
@@ -168,7 +175,8 @@ if __name__ == "__main__":
     parser.add_argument('--task', '-t', type=str, default="train")
     args = parser.parse_args()
 
-    #args = Namespace(config="configs/inference.yaml")
-    args = Namespace(config="configs/test.yaml")
+    args = Namespace(config="configs/inference.yaml")
+    #args = Namespace(config="configs/test.yaml")
+    #args = Namespace(config="configs/train.yaml")
 
     main(args)
