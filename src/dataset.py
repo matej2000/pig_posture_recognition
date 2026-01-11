@@ -7,13 +7,15 @@ import torchvision.transforms.functional as F
 from torchvision import transforms
 import matplotlib.pyplot as plt
 import torch
+import numpy as np
 
 class PigDataset(Dataset):
-    def __init__(self, csv_file, img_dir, transform=None, is_inference=False):
+    def __init__(self, csv_file, img_dir, transform=None, is_inference=False, alpha=0.2):
         self.img_data = pd.read_csv(csv_file, converters={"bbox": ast.literal_eval})
         self.img_dir = img_dir
         self.transform = transform
         self.is_inference = is_inference
+        self.alpha = alpha
 
         if not is_inference:
             self.targets = self.img_data["class_id"].values
@@ -30,11 +32,15 @@ class PigDataset(Dataset):
             label = self.img_data.iloc[idx]["class_id"]
         
         x1, y1, w, h = self.img_data.iloc[idx]["bbox"]
-        #size = w * h * 0.2
-        x1 -= 50
-        y1 -= 50
-        w += 100
-        h += 100
+        # x1 -= 50
+        # y1 -= 50
+        # w += 100
+        # h += 100
+        padding = max(w, h) * self.alpha
+        x1 -= padding/2
+        y1 -= padding/2
+        w += padding
+        h += padding
         img = decode_image(img_loc)
         img = F.crop(img, int(y1), int(x1), int(h), int(w))
 
@@ -72,6 +78,9 @@ def build_train_transforms(cfg, weights=None):
         aug.append(
             transforms.ColorJitter(**cfg["augmentation"]["color_jitter"])
         )
+    
+    if "random_rotation" in cfg["augmentation"].keys():
+        aug.append(transforms.RandomRotation(**cfg["augmentation"]["random_rotation"]))
 
     if weights:
         aug.append(weights.transforms())
