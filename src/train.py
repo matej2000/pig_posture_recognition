@@ -6,6 +6,7 @@ import mlflow
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.cuda.amp import autocast
+from torchvision.transforms.functional import rotate
 
 
 def evaluate_results(predictions, gt):
@@ -167,3 +168,62 @@ def inference(dataloader, model, device):
             gts.append(y)
             
     return predictions, gts
+
+def tta_prediction(dataloader, model, loss_fn, device, postprocessor=None, tta_count=5, prob=False):
+    # Test-Time augmentation Setup
+    num_batches = len(dataloader)
+    model.eval()
+    test_loss = 0
+    predictions = []
+    gts = []
+    
+    with torch.no_grad():
+        for x, y in tqdm(dataloader):
+            x = x.to(device)
+
+            batch_size = x.size(0)
+            tta_preds = torch.zeros(batch_size, 5).to(torch.device("cuda"))
+
+
+            for tta_idx in range(tta_count):
+                if tta_idx == 0:
+                    # Original
+                    aug_images = x
+                elif tta_idx == 1:
+                    # Horizontal flip
+                    #aug_images = torch.flip(x, dims=[3])
+                    aug_images = rotate(x, 5)
+                elif tta_idx == 2:
+                    # Vertical flip
+                    #aug_images = torch.flip(x, dims=[2])
+                    aug_images = rotate(x, -5)
+                elif tta_idx == 3:
+                    # Rotate 90 degrees
+                    #aug_images = torch.rot90(x, k=1, dims=[2, 3])
+                    aug_images = rotate(x, 15)
+
+                else:
+                    # Rotate 270 degrees
+                    #aug_images = torch.rot90(x, k=3, dims=[2, 3])
+                    aug_images = rotate(x, -15)
+
+
+                with autocast():
+                    outputs = model(aug_images)
+
+                tta_preds += torch.softmax(outputs, dim=1)
+
+            tta_preds /= tta_count
+
+            if prob:
+                pred = tta_preds
+            else:
+                _, pred = torch.max(tta_preds, 1)
+            predictions.append(pred)
+            gts.append(y)
+            
+    test_loss /= num_batches
+    # if not prob:
+    #     results = evaluate_results(predictions, gts)
+    #     print(f"Test Error: \n Avg loss: {test_loss:>8f} \n F1: {results['f1']:>8f} \n CA: {results['ca']:>8f}")
+    return predictions, gts, test_loss

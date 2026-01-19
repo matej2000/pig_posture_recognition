@@ -6,6 +6,8 @@ train_dir: data/train_images/
 
 test_ann: data/test.csv
 test_dir: data/test_images/
+# test_ann: data/split/val.csv
+# test_dir: data/train_images/
 
 val_ann: data/split/val.csv
 val_dir: data/train_images/
@@ -29,6 +31,7 @@ resume: output/run16/best_epoch.pth
 resume_optimizer: None
 resume_itr: 0
 task: inference
+tta: True
 
 
 # scheduler:

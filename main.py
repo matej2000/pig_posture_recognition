@@ -12,7 +12,7 @@ import torch.optim as optim
 from torchvision.models import efficientnet_v2_m, EfficientNet_V2_M_Weights, convnext_small, ConvNeXt_Small_Weights
 
 from src.dataset import PigDataset, build_train_transforms, visualize_dataloader
-from src.train import train, test, inference, evaluate_results_test
+from src.train import train, test, inference, evaluate_results_test, tta_prediction
 import os
 import mlflow
 from torch.utils.data import WeightedRandomSampler
@@ -117,7 +117,7 @@ def main(args, ) -> None:
                 loss_fn = nn.CrossEntropyLoss()
                 device = torch.device("cuda")
 
-                predictions, gt, loss = test(test_loader, model, loss_fn, device)
+                predictions, gt, loss = tta_prediction(test_loader, model, loss_fn, device)
                 results = evaluate_results_test(predictions, gt)
 
                 plt.figure(figsize=(6, 6))
@@ -144,18 +144,28 @@ def main(args, ) -> None:
                 test_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=False)
 
                 device = torch.device("cuda")
+                loss_fn = nn.CrossEntropyLoss()
 
-                predictions, row_ids = inference(test_loader, model, device)
+                prob = True
+                if yaml_parser.has_key("tta") and yaml_parser["tta"]:
+                    predictions, row_ids, _ = tta_prediction(test_loader, model, loss_fn, device, prob=prob)
+                else:
+                    predictions, row_ids = inference(test_loader, model, device)
 
                 results = pd.DataFrame([])
                 new_rows = []
                 for row in row_ids:
                     new_rows += row
                 results["row_id"] = new_rows
-                results["class_id"] = torch.cat(predictions).cpu().numpy()
+                if prob:
+                    for i in range(5):
+                        results["class_"+str(i)] = torch.cat(predictions, dim=0)[:, i].cpu().numpy()
+                else:
+                    results["class_id"] = torch.cat(predictions).cpu().numpy()
 
                 results.to_csv(os.path.join(yaml_parser["output_dir"], "predictions.csv"), index=False)
                 print("Predictions saved in " + os.path.join(yaml_parser["output_dir"], "predictions.csv"))
+            
                 
             elif yaml_parser["task"] == "visualization":
                 dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser))
