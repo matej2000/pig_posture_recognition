@@ -21,3 +21,6 @@ class YamlParser(object):
                     items.append((new_key, v))
             return dict(items)
         return flatten(self.config)
+
+    def has_key(self, key):
+        return key in self.config.keys()
