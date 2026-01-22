@@ -63,18 +63,19 @@ def main(args, ) -> None:
             if yaml_parser["task"] == "train":
                 #Define dataloader
                 if not yaml_parser["shuffle"]:
-                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, ConvNeXt_Small_Weights.DEFAULT))
+                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, main_transform))
                     targets = dataset.targets
                     class_sample_count = np.unique(targets, return_counts=True)[1]
                     weight = 1. / class_sample_count
                     samples_weight = torch.tensor([weight[t] for t in targets])
                     
                     sampler = WeightedRandomSampler(samples_weight, len(samples_weight), replacement=True)
-                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, ConvNeXt_Small_Weights.DEFAULT))
+                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, main_transform))
                     train_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], sampler=sampler, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=yaml_parser["drop_last"])
                 else:
-                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, ConvNeXt_Small_Weights.DEFAULT))
+                    dataset = PigDataset(yaml_parser["train_ann"], yaml_parser["train_dir"], transform=build_train_transforms(yaml_parser, main_transform))
                     train_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=yaml_parser["shuffle"], pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=yaml_parser["drop_last"])
+                
                 dataset = PigDataset(yaml_parser["val_ann"], yaml_parser["val_dir"], transform=main_transform)
                 val_loader = DataLoader(dataset, batch_size=yaml_parser["batch_size"], shuffle=False, pin_memory=yaml_parser["pin_memory"], num_workers=yaml_parser["num_workers"], drop_last=False)
                 dataset = PigDataset(yaml_parser["test_ann"], yaml_parser["test_dir"], transform=main_transform)
@@ -146,7 +147,7 @@ def main(args, ) -> None:
                 device = torch.device("cuda")
                 loss_fn = nn.CrossEntropyLoss()
 
-                prob = True
+                prob = False
                 if yaml_parser.has_key("tta") and yaml_parser["tta"]:
                     predictions, row_ids, _ = tta_prediction(test_loader, model, loss_fn, device, prob=prob)
                 else:
@@ -185,8 +186,10 @@ if __name__ == "__main__":
     parser.add_argument('--task', '-t', type=str, default="train")
     args = parser.parse_args()
 
-    args = Namespace(config="configs/inference.yaml")
+    #args = Namespace(config="configs/inference.yaml")
     #args = Namespace(config="configs/test.yaml")
     #args = Namespace(config="configs/train.yaml")
+    #args = Namespace(config="configs/train_efficient_net.yaml")
+    args = Namespace(config="configs/vit_dino/inference_vit_dino.yaml")
 
     main(args)
