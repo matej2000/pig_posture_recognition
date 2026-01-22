@@ -36,6 +36,8 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, scaler, device, postp
         optimizer.zero_grad(set_to_none=True)
         with autocast():
             pred = model(x)
+            if isinstance(pred, (list, tuple)):
+                pred = pred[0]
             loss = loss_fn(pred, y)
         
         if postprocessor is not None:
@@ -135,6 +137,8 @@ def test(dataloader, model, loss_fn, device, postprocessor=None):
 
             with autocast():
                 pred = model(x)
+                if isinstance(pred, (list, tuple)):
+                    pred = pred[0]
                 test_loss += loss_fn(pred, y.to(device)).item()
 
             _, pred = torch.max(pred, 1)
@@ -161,6 +165,8 @@ def inference(dataloader, model, device):
         for x, y in tqdm(dataloader):
             x = x.to(device)
             pred = model(x)
+            if isinstance(pred, (list, tuple)):
+                pred = pred[0]
 
             _, pred = torch.max(pred, 1)
             
@@ -210,6 +216,8 @@ def tta_prediction(dataloader, model, loss_fn, device, postprocessor=None, tta_c
 
                 with autocast():
                     outputs = model(aug_images)
+                    if isinstance(outputs, (list, tuple)):
+                        outputs = outputs[0]
 
                 tta_preds += torch.softmax(outputs, dim=1)
 

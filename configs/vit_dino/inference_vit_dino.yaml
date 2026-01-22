@@ -1,20 +1,22 @@
 experiment_name: Pig_Posture_Prediction
-run_name: run16
+run_name: run20inf
 
 train_ann: data/split/train.csv
 train_dir: data/train_images/
 
-test_ann: data/split/test.csv
-test_dir: data/train_images/
+test_ann: data/test.csv
+test_dir: data/test_images/
+# test_ann: data/split/test.csv
+# test_dir: data/train_images/
 
 val_ann: data/split/val.csv
 val_dir: data/train_images/
 
 output_dir: "output/"
 
-model_name: convnext_small
+model_name: dinov2_vit
 model:
-  type: convnext_small #"efficientnet_v2_m" # or "convnext_small"
+  type: dinov2_vit #"efficientnet_v2_m" # or "convnext_small"
   weights: "DEFAULT"
 
 num_classes: 5
@@ -25,10 +27,11 @@ shuffle: False
 drop_last: False
 pin_memory: False
 
-resume: output/run16/best_epoch.pth
+resume: output/run20/best_epoch.pth
 resume_optimizer: None
 resume_itr: 0
-task: test
+task: inference
+tta: True
 
 
 # scheduler:

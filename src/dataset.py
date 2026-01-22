@@ -49,7 +49,7 @@ class PigDataset(Dataset):
             img = self.transform(img)
         return img, label
 
-def build_train_transforms(cfg, weights=None):
+def build_train_transforms(cfg, og_transform=None):
     aug = []
     if "augmentation" not in cfg.config.keys():
         return weights.transforms()
@@ -82,8 +82,8 @@ def build_train_transforms(cfg, weights=None):
     if "random_rotation" in cfg["augmentation"].keys():
         aug.append(transforms.RandomRotation(**cfg["augmentation"]["random_rotation"]))
 
-    if weights:
-        aug.append(weights.transforms())
+    if og_transform:
+        aug.append(og_transform)
     return transforms.Compose(aug)
         
         
