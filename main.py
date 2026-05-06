@@ -189,7 +189,7 @@ if __name__ == "__main__":
     #args = Namespace(config="configs/inference.yaml")
     #args = Namespace(config="configs/test.yaml")
     #args = Namespace(config="configs/train.yaml")
-    #args = Namespace(config="configs/train_efficient_net.yaml")
-    args = Namespace(config="configs/vit_dino/inference_vit_dino.yaml")
+    args = Namespace(config="configs/train_yolo.yaml")
+    #args = Namespace(config="configs/vit_dino/test_vit_dino.yaml")
 
     main(args)
